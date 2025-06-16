@@ -44,8 +44,8 @@ class EnhancedPDFTableExtractor:
         self.api_key = api_key
         genai.configure(api_key=api_key)
         
-        # Initialize Gemini 2.0 Flash model
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        # Initialize Gemini 1.5 Flash model
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
         
         # Base output directory - will be set per PDF
         self.base_output_dir = Path("extracted_tables")
@@ -1093,7 +1093,7 @@ def main():
     
     st.title("🚀 Enhanced PDF Table Extractor")
     st.markdown("### Extract tables from ALL pages with AI-powered precision")
-    st.markdown("**Powered by Google Gemini 2.0 Flash with enhanced financial statement recognition**")
+    st.markdown("**Powered by Google Gemini 1.5 Flash with enhanced financial statement recognition**")
     
     # Sidebar for configuration
     with st.sidebar:
@@ -1315,7 +1315,7 @@ def main():
         - Complex multi-page tables
         
         ## Technical Specifications
-        - **AI Model:** Google Gemini 2.0 Flash
+        - **AI Model:** Google Gemini 1.5 Flash
         - **Image Quality:** 216 DPI (3x zoom)
         - **Processing:** All pages analyzed
         - **Output:** CSV files with Excel compatibility
