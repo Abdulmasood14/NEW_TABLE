@@ -259,165 +259,58 @@ class EnhancedPDFTableExtractor:
     
     def create_enhanced_table_extraction_prompt(self) -> str:
         """
-        Enhanced prompt from model1.py with all specifications for accurate table extraction
-        Specialized for financial statements with Quarter & Nine Months format
+        Precise visual table extraction prompt - extract only what is visible
         
         Returns:
             str: Complete extraction prompt
         """
         return """
-        You are an expert PDF table extraction specialist. Analyze this image with extreme precision to extract EXACT data as it appears.
+        You are a precise table extraction specialist. Your task is to extract tables EXACTLY as they appear in the image.
 
-        CRITICAL INSTRUCTIONS FOR ACCURACY:
+        CORE PRINCIPLE: Extract only what you can clearly see. Do not guess, calculate, or invent any data.
 
-        STEP 1 - COMPLETE TITLE EXTRACTION:
-        - Look for the COMPLETE title including ALL subtitle information
-        - Extract titles like: "UNAUDITED CONSOLIDATED FINANCIAL RESULTS FOR THE QUARTER & NINE MONTHS ENDED DECEMBER 31, 2024"
-        - ALWAYS include currency/unit information if present: "(Rs. In Lakhs)", "(Rs. In Crores)", etc.
-        - Look for text that appears prominently above the table
-        - Include any subtitle information that describes the table content
-        - Example complete titles:
-          * "UNAUDITED CONSOLIDATED FINANCIAL RESULTS FOR THE QUARTER & NINE MONTHS ENDED DECEMBER 31, 2024 (Rs. In Lakhs)"
-          * "AUDITED STANDALONE FINANCIAL RESULTS FOR THE QUARTER & YEAR ENDED MARCH 31, 2025 (Rs. In Lakhs)"
+        EXTRACTION RULES:
+        1. Look at the image carefully and identify all tables
+        2. Extract the complete title that appears above each table
+        3. Extract column headers exactly as written
+        4. Extract each cell value exactly as it appears
+        5. Preserve all formatting: commas, decimals, parentheses, dashes
+        6. Use empty string "" for truly blank cells
+        7. If text is unclear or cut off, extract what you can see clearly
 
-        STEP 2 - CRITICAL TEXT RECOGNITION FOR SPECIFIC PATTERNS:
-        - MOST IMPORTANT: Look for text patterns that start with a dash/hyphen (-)
-        - Specifically look for: "- Deferred Tax Expenses / (Income)"
-        - This text appears as an indented sub-item under Tax Expense
-        - Extract this EXACTLY as: "- Deferred Tax Expenses / (Income)"
-        - DO NOT convert this to "#NAME?" or any error message
-        - DO NOT interpret the dash as a negative sign for numbers
-        - DO NOT remove the dash or modify the text in any way
-        - This is DESCRIPTIVE TEXT, not a formula or calculation
+        TABLE STRUCTURE:
+        - Title: Complete title including company name, period, and units (e.g., "Rs. in million")
+        - Headers: All column headers as they appear, including sub-headers
+        - Data: Each row with its label and corresponding values across columns
 
-        STEP 3 - QUARTER AND NINE MONTHS COLUMN HANDLING:
-        - Look for column headers that contain "Quarter Ended" and "Nine Months Ended"
-        - Extract these headers exactly as they appear with dates
-        - Examples of expected headers:
-          * "Quarter Ended December 31, 2024"
-          * "Nine Months Ended December 31, 2024"
-          * "Quarter Ended December 31, 2023"
-          * "Nine Months Ended December 31, 2023"
-        - Preserve the exact format: "Quarter Ended [Date]" and "Nine Months Ended [Date]"
-        - Look for additional qualifiers like "Reviewed" or "Unaudited" if present
+        VISUAL ACCURACY:
+        - Read each number exactly as displayed
+        - Preserve negative values in parentheses: (123)
+        - Keep dashes as "-" where they appear as data
+        - Maintain exact text including spaces and punctuation
+        - Extract row labels with their numbering/formatting
 
-        STEP 4 - GENERAL TEXT RECOGNITION:
-        - Read ALL other text EXACTLY as written in the PDF
-        - Pay special attention to negative values in parentheses: (123.45)
-        - Look for dash symbols "-" which indicate zero or nil values (different from descriptive text)
-        - Preserve all decimal points, commas, and formatting exactly
-        - Look carefully at each character to avoid misreading
-
-        STEP 5 - SERIAL NUMBER (Sr. No.) HANDLING:
-        - Look for "Sr. No." or "S. No." in the header
-        - Serial numbers in this table are: I, II, III, IV, V, VI, VII, VIII, IX (Roman numerals WITHOUT parentheses)
-        - Extract EXACTLY as shown:
-          * I for first row
-          * II for second row  
-          * III for third row
-          * IV for fourth row
-          * V for fifth row
-          * VI for sixth row
-          * VII for seventh row
-          * VIII for eighth row
-          * IX for ninth row
-        - Do NOT add parentheses if they're not there
-        - Do NOT convert to Arabic numbers
-
-        STEP 6 - FINANCIAL DATA HANDLING:
-        - Extract ALL numerical values exactly as shown
-        - Preserve negative values in parentheses: (135.30), (121.26), (196.58), (552.77)
-        - Keep dash symbols as "-" for zero/nil values (when used as data, not as text prefix)
-        - Maintain exact decimal precision: 13,542.40, 18,790.26, etc.
-        - Include commas in large numbers exactly as shown
-        - Do NOT interpret or modify any values
-
-        STEP 7 - COMPLEX TABLE STRUCTURE:
-        - Handle multi-level row descriptions correctly
-        - For items with sub-items (like "a) Cost of Materials", "b) Purchase"), extract the complete text
-        - For indented items like "- Deferred Tax Expenses / (Income)", extract EXACTLY as shown
-        - Maintain proper hierarchy and indentation information
-        - Extract merged cells and sub-categories properly
-        - Remember: Items starting with "- " are descriptive text, not calculations
-
-        STEP 8 - COLUMN HEADERS WITH QUARTER/NINE MONTHS:
-        - Extract ALL column headers exactly as shown with the specific format
-        - Include headers like:
-          * "Quarter Ended December 31, 2024 Reviewed"
-          * "Nine Months Ended December 31, 2024 Reviewed"
-          * "Quarter Ended December 31, 2023 Reviewed"
-          * "Nine Months Ended December 31, 2023 Reviewed"
-        - Preserve all header text including qualifiers like "Reviewed", "Unaudited", "Audited"
-        - Maintain the exact format: "Quarter Ended [Date]" and "Nine Months Ended [Date]"
-
-        STEP 9 - PRECISE DATA EXTRACTION:
-        - Extract ALL visible text from each cell EXACTLY as shown
-        - Maintain precise column alignment
-        - Include empty cells as empty strings
-        - Preserve the exact row and column structure
-        - Handle merged cells appropriately
-        - Don't modify or interpret the data - extract it exactly
-        - NEVER convert valid descriptive text to error messages
-
-        OUTPUT FORMAT - CRITICAL EXAMPLE FOR QUARTER/NINE MONTHS:
+        OUTPUT FORMAT:
         {
             "has_tables": true/false,
             "tables": [
                 {
-                    "title": "UNAUDITED CONSOLIDATED FINANCIAL RESULTS FOR THE QUARTER & NINE MONTHS ENDED DECEMBER 31, 2024 (Rs. In Lakhs)",
-                    "table_number": null,
-                    "headers": ["Sr. No.", "Particulars", "Quarter Ended December 31, 2024 Reviewed", "Nine Months Ended December 31, 2024 Reviewed", "Quarter Ended December 31, 2023 Reviewed", "Nine Months Ended December 31, 2023 Reviewed"],
+                    "title": "Exact title as visible in image",
+                    "headers": ["Header1", "Header2", "Header3", ...],
                     "data": [
-                        ["I", "Revenue from Operations", "2,369.75", "27,490.52", "2,148.92", "24,117.03"],
-                        ["II", "Other Income", "929.74", "1,779.25", "", ""],
-                        ["III", "Total Revenue (I+II)", "27,490.52", "63,117.03", "", ""],
-                        ["", "Expenses", "", "", "", ""],
-                        ["a)", "Cost of Materials Consumed", "15,151.00", "31,781.99", "", ""],
-                        ["b)", "Purchase of Traded Goods", "1,721.37", "5,110.47", "", ""],
-                        ["c)", "Changes in Inventories of Finished Goods, Work-in-Progress and Stock-in", "829.82", "3,443.16", "", ""],
-                        ["IV", "", "", "", "", ""],
-                        ["d)", "Employee Benefits Expense", "1,936.50", "3,307.21", "", ""],
-                        ["e)", "Manufacturing and Other Expenses", "3,051.79", "7,683.58", "", ""],
-                        ["f)", "Finance Cost", "253.80", "554.75", "", ""],
-                        ["g)", "Depreciation & Amortisation Expense", "254.70", "665.34", "", ""],
-                        ["", "Total Expenses (a to g)", "22,777.28", "52,547.00", "", ""],
-                        ["V", "Profit / (Loss) before Exceptional Items and Tax (III-IV)", "4,823.24", "10,570.03", "", ""],
-                        ["VI", "Exceptional Items", "-", "-", "", ""],
-                        ["VII", "Profit / (Loss) before Tax (V-VI)", "4,823.24", "10,570.03", "", ""],
-                        ["VIII", "Tax Expense - Current Tax", "1,109.75", "2,360.00", "", ""],
-                        ["", "- Deferred Tax Expenses / (Income)", "(0.52)", "(211.11)", "", ""],
-                        ["IX", "Profit / (Loss) for the period (VII-VIII)", "3,632.51", "8,549.21", "", ""]
+                        ["Row1_Label", "Value1", "Value2", ...],
+                        ["Row2_Label", "Value1", "Value2", ...],
+                        ...
                     ]
                 }
             ]
         }
 
-        CRITICAL ACCURACY REQUIREMENTS:
-        1. Include complete title with currency information: "(Rs. In Lakhs)"
-        2. Extract Sr. No. as Roman numerals: I, II, III, IV, V, VI, VII, VIII, IX
-        3. Preserve negative values in parentheses: (135.30), (121.26)
-        4. Keep dash symbols as "-" for nil values in data cells
-        5. Extract "- Deferred Tax Expenses / (Income)" EXACTLY as shown - this is descriptive text, not an error
-        6. Maintain exact financial formatting with commas
-        7. Extract all sub-item descriptions completely
-        8. Use "Quarter Ended [Date]" and "Nine Months Ended [Date]" format for column headers
-        9. Handle complex table structure with merged cells
-
-        MOST IMPORTANT - AVOID THESE SPECIFIC MISTAKES:
-        - Converting "- Deferred Tax Expenses / (Income)" to "#NAME?" or any error message
-        - Treating "- Deferred Tax Expenses / (Income)" as a formula or calculation
-        - Missing the complete descriptive text that starts with "-"
-        - Converting descriptive text starting with "-" to numerical values
-        - Not using the proper "Quarter Ended" and "Nine Months Ended" format in headers
-
-        SPECIFIC TEXT PATTERNS TO PRESERVE EXACTLY:
-        - "- Deferred Tax Expenses / (Income)" (this is descriptive text, not a calculation)
-        - "- Current Tax" (if present)
-        - Any other text that starts with "- " (these are descriptions, not formulas)
-        - "Quarter Ended [Date]" format for quarterly columns
-        - "Nine Months Ended [Date]" format for nine-month columns
-
-        Remember: Text that starts with "- " followed by words is DESCRIPTIVE TEXT that should be extracted exactly as written, never converted to error messages. Column headers should use the exact "Quarter Ended" and "Nine Months Ended" format.
+        IMPORTANT: 
+        - Extract ONLY what is clearly visible in the image
+        - Do NOT fill in missing data or make assumptions
+        - Maintain the exact structure and layout of the table
+        - Preserve all visible text formatting and numerical formatting
         """
     
     def extract_tables_from_image_enhanced(self, image: Any, page_num: int) -> Dict:
