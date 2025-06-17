@@ -1186,145 +1186,10 @@ def main():
                 with st.spinner("Processing all pages..."):
                     results = extractor.process_all_pages_enhanced(tmp_file_path)
                 
-                # Display results
-                if "error" in results:
-                    st.error(f"❌ {results['error']}")
-                    return
-                
-                # Success metrics
-                st.success("🎉 Extraction completed successfully!")
-                
-                # Results dashboard
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("📄 Total Pages", results['total_pages'])
-                with col2:
-                    st.metric("📊 Pages with Tables", results['pages_with_tables'])
-                with col3:
-                    st.metric("📋 Tables Extracted", results['total_tables_extracted'])
-                with col4:
-                    st.metric("💾 CSV Files", len(results['csv_files']))
-                
-                # Processing details
-                details = results.get('processing_details', {})
-                st.subheader("🔍 Processing Analysis")
-                
-                detail_cols = st.columns(4)
-                with detail_cols[0]:
-                    st.info(f"**AI Model:** {details.get('ai_model', 'Gemini 2.0 Flash')}")
-                with detail_cols[1]:
-                    st.info(f"**Roman Numerals:** {'✅ Found' if details.get('roman_numerals_preserved') else '❌ Not found'}")
-                with detail_cols[2]:
-                    st.info(f"**Q&9M Format:** {'✅ Detected' if details.get('quarter_nine_months_format') else '❌ Not found'}")
-                with detail_cols[3]:
-                    st.info(f"**Deferred Tax:** {'✅ Found & Fixed' if details.get('deferred_tax_entries_found') else '❌ Not found'}")
-                
-                # CSV files with individual downloads
-                if results['csv_files']:
-                    st.subheader("💾 Individual Table Downloads")
-                    st.markdown("**Each table saved with its extracted title as filename:**")
-                    
-                    # Store results in session state to persist after downloads
-                    if 'extraction_results' not in st.session_state:
-                        st.session_state.extraction_results = results
-                    
-                    # Use session state results to prevent loss on rerun
-                    current_results = st.session_state.extraction_results
-                    
-                    # Create download section for each CSV file
-                    for i, csv_path in enumerate(current_results['csv_files'], 1):
-                        if os.path.exists(csv_path):
-                            filename = os.path.basename(csv_path)
-                            
-                            # Read file content for download
-                            with open(csv_path, 'r', encoding='utf-8') as f:
-                                csv_content = f.read()
-                            
-                            # Get file size
-                            file_size = len(csv_content.encode('utf-8'))
-                            
-                            # Create columns for better layout
-                            col1, col2, col3 = st.columns([4, 1, 1])
-                            
-                            with col1:
-                                st.write(f"**{i}. {filename}**")
-                            with col2:
-                                st.write(f"{file_size / 1024:.1f} KB")
-                            with col3:
-                                # Create unique keys to prevent conflicts
-                                download_key = f"download_csv_{i}_{hash(filename) % 100000}"
-                                st.download_button(
-                                    label="📥 Download",
-                                    data=csv_content.encode('utf-8'),
-                                    file_name=filename,
-                                    mime="text/csv",
-                                    key=download_key
-                                )
-                    
-                    st.divider()
-                    
-                    # Bulk download as ZIP
-                    st.subheader("📦 Bulk Download")
-                    
-                    # Create download zip
-                    zip_buffer = io.BytesIO()
-                    files_added = 0
-                    
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        for csv_path in current_results['csv_files']:
-                            if os.path.exists(csv_path):
-                                zip_file.write(csv_path, os.path.basename(csv_path))
-                                files_added += 1
-                    
-                    if files_added > 0:
-                        zip_buffer.seek(0)
-                        
-                        # Download button for all files
-                        st.download_button(
-                            label=f"📦 Download All {files_added} CSV Files (ZIP)",
-                            data=zip_buffer.getvalue(),
-                            file_name=f"{current_results['pdf_name']}_extracted_tables.zip",
-                            mime="application/zip",
-                            key="bulk_download_zip"
-                        )
-                    else:
-                        st.error("❌ No files available for bulk download")
-                
-                # Page-by-page results
-                st.subheader("📄 Page-by-Page Analysis")
-                for page_result in results['page_results']:
-                    with st.expander(f"Page {page_result['page_number']}" + 
-                                   (f" - {page_result['tables_count']} table(s)" if page_result['has_tables'] else " - No tables")):
-                        
-                        if page_result['has_tables']:
-                            for table in page_result.get('tables', []):
-                                st.write(f"**Title:** {table.get('title', 'Untitled')}")
-                                
-                                # Table features
-                                features = []
-                                if table.get('has_deferred_tax'):
-                                    features.append("🔸 Deferred Tax Entries")
-                                if table.get('has_quarter_format'):
-                                    features.append("📅 Quarter/Nine Months Format")
-                                if table.get('has_roman_numerals'):
-                                    features.append("🔢 Roman Numerals")
-                                
-                                if features:
-                                    st.write("**Features:** " + " | ".join(features))
-                                
-                                st.write(f"**Size:** {table.get('rows', 0)} rows × {table.get('columns', 0)} columns")
-                                st.divider()
-                        else:
-                            st.write("No tables detected on this page")
-                
-                # Extracted titles
-                if results.get('extracted_titles'):
-                    st.subheader("📝 Extracted Table Titles")
-                    for i, title in enumerate(results['extracted_titles'], 1):
-                        st.write(f"{i}. {title}")
-                
-                # Output directory info
-                st.info(f"📁 **Output Directory:** {results['output_directory']}")
+                # Store results in session state immediately after processing
+                st.session_state.extraction_complete = True
+                st.session_state.results = results
+                st.session_state.uploaded_filename = uploaded_file.name
                 
             except Exception as e:
                 st.error(f"❌ Error during processing: {str(e)}")
@@ -1338,6 +1203,153 @@ def main():
                     os.unlink(tmp_file_path)
                 except:
                     pass
+
+    # Display results section (separated from processing)
+    if st.session_state.get('extraction_complete', False) and 'results' in st.session_state:
+        results = st.session_state.results
+        
+        # Display results
+        if "error" in results:
+            st.error(f"❌ {results['error']}")
+        else:
+            # Success metrics
+            st.success("🎉 Extraction completed successfully!")
+            
+            # Results dashboard
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("📄 Total Pages", results['total_pages'])
+            with col2:
+                st.metric("📊 Pages with Tables", results['pages_with_tables'])
+            with col3:
+                st.metric("📋 Tables Extracted", results['total_tables_extracted'])
+            with col4:
+                st.metric("💾 CSV Files", len(results['csv_files']))
+            
+            # Processing details
+            details = results.get('processing_details', {})
+            st.subheader("🔍 Processing Analysis")
+            
+            detail_cols = st.columns(4)
+            with detail_cols[0]:
+                st.info(f"**AI Model:** {details.get('ai_model', 'Gemini 2.0 Flash')}")
+            with detail_cols[1]:
+                st.info(f"**Roman Numerals:** {'✅ Found' if details.get('roman_numerals_preserved') else '❌ Not found'}")
+            with detail_cols[2]:
+                st.info(f"**Q&9M Format:** {'✅ Detected' if details.get('quarter_nine_months_format') else '❌ Not found'}")
+            with detail_cols[3]:
+                st.info(f"**Deferred Tax:** {'✅ Found & Fixed' if details.get('deferred_tax_entries_found') else '❌ Not found'}")
+            
+            # CSV files with individual downloads
+            if results['csv_files']:
+                st.subheader("💾 Individual Table Downloads")
+                st.markdown("**Each table saved with its extracted title as filename:**")
+                
+                # Create download section for each CSV file
+                for i, csv_path in enumerate(results['csv_files'], 1):
+                    if os.path.exists(csv_path):
+                        filename = os.path.basename(csv_path)
+                        
+                        # Read file content for download
+                        with open(csv_path, 'r', encoding='utf-8') as f:
+                            csv_content = f.read()
+                        
+                        # Get file size
+                        file_size = len(csv_content.encode('utf-8'))
+                        
+                        # Create columns for better layout
+                        col1, col2, col3 = st.columns([4, 1, 1])
+                        
+                        with col1:
+                            st.write(f"**{i}. {filename}**")
+                        with col2:
+                            st.write(f"{file_size / 1024:.1f} KB")
+                        with col3:
+                            # Create unique keys using both index and filename hash
+                            download_key = f"dl_{i}_{abs(hash(filename)) % 10000}_{len(results['csv_files'])}"
+                            st.download_button(
+                                label="📥 Download",
+                                data=csv_content.encode('utf-8'),
+                                file_name=filename,
+                                mime="text/csv",
+                                key=download_key
+                            )
+                
+                st.divider()
+                
+                # Bulk download as ZIP
+                st.subheader("📦 Bulk Download")
+                
+                # Create download zip
+                zip_buffer = io.BytesIO()
+                files_added = 0
+                
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    for csv_path in results['csv_files']:
+                        if os.path.exists(csv_path):
+                            zip_file.write(csv_path, os.path.basename(csv_path))
+                            files_added += 1
+                
+                if files_added > 0:
+                    zip_buffer.seek(0)
+                    
+                    # Download button for all files
+                    st.download_button(
+                        label=f"📦 Download All {files_added} CSV Files (ZIP)",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"{results['pdf_name']}_extracted_tables.zip",
+                        mime="application/zip",
+                        key=f"bulk_zip_{len(results['csv_files'])}_{abs(hash(results['pdf_name'])) % 1000}"
+                    )
+                else:
+                    st.error("❌ No files available for bulk download")
+            
+            # Page-by-page results
+            st.subheader("📄 Page-by-Page Analysis")
+            for page_result in results['page_results']:
+                with st.expander(f"Page {page_result['page_number']}" + 
+                               (f" - {page_result['tables_count']} table(s)" if page_result['has_tables'] else " - No tables")):
+                    
+                    if page_result['has_tables']:
+                        for table in page_result.get('tables', []):
+                            st.write(f"**Title:** {table.get('title', 'Untitled')}")
+                            
+                            # Table features
+                            features = []
+                            if table.get('has_deferred_tax'):
+                                features.append("🔸 Deferred Tax Entries")
+                            if table.get('has_quarter_format'):
+                                features.append("📅 Quarter/Nine Months Format")
+                            if table.get('has_roman_numerals'):
+                                features.append("🔢 Roman Numerals")
+                            
+                            if features:
+                                st.write("**Features:** " + " | ".join(features))
+                            
+                            st.write(f"**Size:** {table.get('rows', 0)} rows × {table.get('columns', 0)} columns")
+                            st.divider()
+                    else:
+                        st.write("No tables detected on this page")
+            
+            # Extracted titles
+            if results.get('extracted_titles'):
+                st.subheader("📝 Extracted Table Titles")
+                for i, title in enumerate(results['extracted_titles'], 1):
+                    st.write(f"{i}. {title}")
+            
+            # Output directory info
+            st.info(f"📁 **Output Directory:** {results['output_directory']}")
+            
+            # Add a button to clear results and start over
+            if st.button("🔄 Process Another PDF", key="restart_button"):
+                # Clear session state
+                if 'extraction_complete' in st.session_state:
+                    del st.session_state.extraction_complete
+                if 'results' in st.session_state:
+                    del st.session_state.results
+                if 'uploaded_filename' in st.session_state:
+                    del st.session_state.uploaded_filename
+                st.rerun()
     
     # Instructions and deployment info
     st.divider()
