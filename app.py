@@ -260,6 +260,7 @@ class EnhancedPDFTableExtractor:
     def create_enhanced_table_extraction_prompt(self) -> str:
         """
         Precise visual table extraction prompt - extract only what is visible
+        Focus on accurate period extraction (Quarter ended, Year ended)
         
         Returns:
             str: Complete extraction prompt
@@ -272,15 +273,27 @@ class EnhancedPDFTableExtractor:
         EXTRACTION RULES:
         1. Look at the image carefully and identify all tables
         2. Extract the complete title that appears above each table
-        3. Extract column headers exactly as written
+        3. Extract column headers exactly as written - pay special attention to period information
         4. Extract each cell value exactly as it appears
         5. Preserve all formatting: commas, decimals, parentheses, dashes
         6. Use empty string "" for truly blank cells
         7. If text is unclear or cut off, extract what you can see clearly
 
+        PERIOD EXTRACTION (CRITICAL):
+        - Look for column headers containing period information
+        - Extract "Quarter ended [date]" exactly as shown
+        - Extract "Year ended [date]" exactly as shown  
+        - Extract any other period descriptors exactly as written
+        - Include qualifiers like "(Unaudited)", "(Audited)", "(Refer note X)" if present
+        - Examples of what to look for:
+          * "Quarter ended 31 December 2024 (Unaudited)"
+          * "Year ended 30 September 2024 (Audited)"
+          * "31 December 2024"
+          * "30 September 2024"
+
         TABLE STRUCTURE:
         - Title: Complete title including company name, period, and units (e.g., "Rs. in million")
-        - Headers: All column headers as they appear, including sub-headers
+        - Headers: All column headers as they appear, including period information and sub-headers
         - Data: Each row with its label and corresponding values across columns
 
         VISUAL ACCURACY:
@@ -289,6 +302,7 @@ class EnhancedPDFTableExtractor:
         - Keep dashes as "-" where they appear as data
         - Maintain exact text including spaces and punctuation
         - Extract row labels with their numbering/formatting
+        - Pay special attention to date formats and period descriptions
 
         OUTPUT FORMAT:
         {
@@ -296,7 +310,7 @@ class EnhancedPDFTableExtractor:
             "tables": [
                 {
                     "title": "Exact title as visible in image",
-                    "headers": ["Header1", "Header2", "Header3", ...],
+                    "headers": ["Particulars", "Quarter ended 31 December 2024 (Unaudited)", "Year ended 30 September 2024 (Audited)", ...],
                     "data": [
                         ["Row1_Label", "Value1", "Value2", ...],
                         ["Row2_Label", "Value1", "Value2", ...],
@@ -308,9 +322,10 @@ class EnhancedPDFTableExtractor:
 
         IMPORTANT: 
         - Extract ONLY what is clearly visible in the image
-        - Do NOT fill in missing data or make assumptions
+        - Do NOT fill in missing data or make assumptions about periods
         - Maintain the exact structure and layout of the table
-        - Preserve all visible text formatting and numerical formatting
+        - Preserve all visible text formatting, numerical formatting, and date formatting
+        - Focus on accurate extraction of period information in column headers
         """
     
     def extract_tables_from_image_enhanced(self, image: Any, page_num: int) -> Dict:
