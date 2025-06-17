@@ -44,8 +44,8 @@ class EnhancedPDFTableExtractor:
         self.api_key = api_key
         genai.configure(api_key=api_key)
         
-        # Initialize Gemini 1.5 Flash model
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        # Initialize Gemini 2.0 Flash model
+        self.model = genai.GenerativeModel('gemini-2.0-flash')
         
         # Base output directory - will be set per PDF
         self.base_output_dir = Path("extracted_tables")
@@ -640,6 +640,7 @@ class EnhancedPDFTableExtractor:
     def save_enhanced_table_to_csv(self, combined_table: Dict, pdf_name: str) -> Optional[str]:
         """
         Save table with enhanced Excel compatibility and formula fixes
+        Uses extracted table title for filename instead of generic names
         
         Args:
             combined_table (Dict): Combined table data
@@ -651,13 +652,18 @@ class EnhancedPDFTableExtractor:
         try:
             title = combined_table.get('title', '')
             if title:
-                # Enhanced filename cleaning
+                # Enhanced filename cleaning using actual table title
                 safe_filename = re.sub(r'[<>:"/\\|?*]', '', title)
                 safe_filename = safe_filename.replace('(Rs. In Lakhs)', '').strip()
+                safe_filename = safe_filename.replace('(Rs. In Crores)', '').strip()
                 safe_filename = re.sub(r'\s+', ' ', safe_filename)
+                # Limit filename length but preserve meaningful content
+                if len(safe_filename) > 80:
+                    safe_filename = safe_filename[:80].strip()
                 filename = f"{safe_filename}.csv"
             else:
-                filename = f"{pdf_name}_Combined_Table.csv"
+                # Only use fallback if no title is available
+                filename = f"Table_from_Page_{combined_table.get('pages', ['Unknown'])[0]}.csv"
             
             filepath = self.output_dir / filename
             
@@ -792,6 +798,7 @@ class EnhancedPDFTableExtractor:
             details = results.get('processing_details', {})
             f.write("PROCESSING DETAILS:\n")
             f.write("-" * 30 + "\n")
+            f.write(f"AI Model: Gemini 2.0 Flash\n")
             f.write(f"Title Extraction: {details.get('title_extraction_method', 'N/A')}\n")
             f.write(f"Image Quality: {details.get('image_conversion', 'N/A')}\n")
             f.write(f"Continuation Detection: {details.get('continuation_detection', 'N/A')}\n")
@@ -892,6 +899,7 @@ class EnhancedPDFTableExtractor:
             "page_results": [],
             "extracted_titles": [],
             "processing_details": {
+                "ai_model": "Gemini 2.0 Flash",
                 "title_extraction_method": "Enhanced PDF metadata + first page analysis",
                 "image_conversion": "PyMuPDF with 3x zoom (216 DPI)",
                 "continuation_detection": "Enhanced title normalization with financial patterns",
@@ -1093,7 +1101,7 @@ def main():
     
     st.title("🚀 Enhanced PDF Table Extractor")
     st.markdown("### Extract tables from ALL pages with AI-powered precision")
-    st.markdown("**Powered by Google Gemini 1.5 Flash with enhanced financial statement recognition**")
+    st.markdown("**Powered by Google Gemini 2.0 Flash with enhanced financial statement recognition**")
     
     # Sidebar for configuration
     with st.sidebar:
@@ -1120,6 +1128,7 @@ def main():
         - ✅ Deferred Tax entries fixed
         - ✅ Continuation table detection
         - ✅ Excel formula compatibility
+        - ✅ Table title-based filenames
         """)
         
         st.header("🎯 Optimized For")
@@ -1129,6 +1138,13 @@ def main():
         - Annual reports
         - Consolidated results
         - Audited/Unaudited statements
+        """)
+        
+        st.header("🆕 Updates")
+        st.markdown("""
+        - **Gemini 2.0 Flash:** Latest AI model
+        - **Smart Filenames:** Uses extracted table titles
+        - **Individual Downloads:** Separate file for each table
         """)
     
     # Main interface
@@ -1166,7 +1182,7 @@ def main():
                 extractor = EnhancedPDFTableExtractor(api_key)
                 
                 # Process with enhanced extraction
-                st.info("🔄 Starting enhanced table extraction...")
+                st.info("🔄 Starting enhanced table extraction with Gemini 2.0 Flash...")
                 with st.spinner("Processing all pages..."):
                     results = extractor.process_all_pages_enhanced(tmp_file_path)
                 
@@ -1193,13 +1209,71 @@ def main():
                 details = results.get('processing_details', {})
                 st.subheader("🔍 Processing Analysis")
                 
-                detail_cols = st.columns(3)
+                detail_cols = st.columns(4)
                 with detail_cols[0]:
-                    st.info(f"**Roman Numerals:** {'✅ Found' if details.get('roman_numerals_preserved') else '❌ Not found'}")
+                    st.info(f"**AI Model:** {details.get('ai_model', 'Gemini 2.0 Flash')}")
                 with detail_cols[1]:
-                    st.info(f"**Q&9M Format:** {'✅ Detected' if details.get('quarter_nine_months_format') else '❌ Not found'}")
+                    st.info(f"**Roman Numerals:** {'✅ Found' if details.get('roman_numerals_preserved') else '❌ Not found'}")
                 with detail_cols[2]:
+                    st.info(f"**Q&9M Format:** {'✅ Detected' if details.get('quarter_nine_months_format') else '❌ Not found'}")
+                with detail_cols[3]:
                     st.info(f"**Deferred Tax:** {'✅ Found & Fixed' if details.get('deferred_tax_entries_found') else '❌ Not found'}")
+                
+                # CSV files with individual downloads
+                if results['csv_files']:
+                    st.subheader("💾 Individual Table Downloads")
+                    st.markdown("**Each table saved with its extracted title as filename:**")
+                    
+                    # Create download section for each CSV file
+                    for i, csv_path in enumerate(results['csv_files'], 1):
+                        if os.path.exists(csv_path):
+                            filename = os.path.basename(csv_path)
+                            
+                            # Read file content for download
+                            with open(csv_path, 'r', encoding='utf-8') as f:
+                                csv_content = f.read()
+                            
+                            # Get file size
+                            file_size = len(csv_content.encode('utf-8'))
+                            
+                            # Create columns for better layout
+                            col1, col2, col3 = st.columns([3, 1, 1])
+                            
+                            with col1:
+                                st.write(f"**{i}. {filename}**")
+                            with col2:
+                                st.write(f"{file_size / 1024:.1f} KB")
+                            with col3:
+                                st.download_button(
+                                    label="📥 Download",
+                                    data=csv_content,
+                                    file_name=filename,
+                                    mime="text/csv",
+                                    key=f"download_individual_{i}"
+                                )
+                    
+                    st.divider()
+                    
+                    # Optional: Bulk download as ZIP
+                    st.subheader("📦 Bulk Download")
+                    
+                    # Create download zip
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        for csv_path in results['csv_files']:
+                            if os.path.exists(csv_path):
+                                zip_file.write(csv_path, os.path.basename(csv_path))
+                    
+                    zip_buffer.seek(0)
+                    
+                    # Download button for all files
+                    st.download_button(
+                        label="📦 Download All CSV Files (ZIP)",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"{results['pdf_name']}_extracted_tables.zip",
+                        mime="application/zip",
+                        key="download_bulk_zip"
+                    )
                 
                 # Page-by-page results
                 st.subheader("📄 Page-by-Page Analysis")
@@ -1230,46 +1304,9 @@ def main():
                 
                 # Extracted titles
                 if results.get('extracted_titles'):
-                    st.subheader("📝 Extracted Titles")
+                    st.subheader("📝 Extracted Table Titles")
                     for i, title in enumerate(results['extracted_titles'], 1):
                         st.write(f"{i}. {title}")
-                
-                # CSV files
-                if results['csv_files']:
-                    st.subheader("💾 Generated Files")
-                    
-                    # Create download zip
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        for csv_path in results['csv_files']:
-                            if os.path.exists(csv_path):
-                                zip_file.write(csv_path, os.path.basename(csv_path))
-                    
-                    zip_buffer.seek(0)
-                    
-                    # Download button for all files
-                    st.download_button(
-                        label="📦 Download All CSV Files (ZIP)",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"{results['pdf_name']}_extracted_tables.zip",
-                        mime="application/zip"
-                    )
-                    
-                    # Individual file downloads
-                    st.write("**Individual Files:**")
-                    for csv_path in results['csv_files']:
-                        if os.path.exists(csv_path):
-                            with open(csv_path, 'r', encoding='utf-8') as f:
-                                csv_content = f.read()
-                            
-                            filename = os.path.basename(csv_path)
-                            st.download_button(
-                                label=f"📄 {filename}",
-                                data=csv_content,
-                                file_name=filename,
-                                mime="text/csv",
-                                key=f"download_{filename}"
-                            )
                 
                 # Output directory info
                 st.info(f"📁 **Output Directory:** {results['output_directory']}")
@@ -1296,7 +1333,7 @@ def main():
         1. **Get API Key:** Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
         2. **Upload PDF:** Choose a PDF file containing tables
         3. **Extract:** Click the extraction button to process all pages
-        4. **Download:** Get CSV files with properly formatted table data
+        4. **Download:** Get individual CSV files with meaningful filenames based on table titles
         
         ## Key Features
         - **All Pages Processing:** Every page is analyzed for tables
@@ -1306,6 +1343,13 @@ def main():
         - **Quarter/Nine Months:** Properly handles Q&9M financial formats
         - **Roman Numerals:** Preserves Sr. No. formatting (I, II, III, etc.)
         - **Deferred Tax Fix:** Prevents "- Deferred Tax Expenses" from becoming #NAME?
+        - **Smart Filenames:** Uses extracted table titles instead of generic names
+        - **Individual Downloads:** Separate download for each table
+        
+        ## Latest Updates
+        - **Gemini 2.0 Flash:** Using the latest AI model for better accuracy
+        - **Table Title Filenames:** CSV files named using actual extracted table titles
+        - **No Generic Names:** Eliminates files like "tmpot0ijrtd_Combined_Table.csv"
         
         ## Supported Table Types
         - Financial statements (P&L, Balance Sheet, Cash Flow)
@@ -1315,11 +1359,17 @@ def main():
         - Complex multi-page tables
         
         ## Technical Specifications
-        - **AI Model:** Google Gemini 1.5 Flash
+        - **AI Model:** Google Gemini 2.0 Flash (Latest)
         - **Image Quality:** 216 DPI (3x zoom)
         - **Processing:** All pages analyzed
-        - **Output:** CSV files with Excel compatibility
+        - **Output:** CSV files with Excel compatibility and meaningful filenames
         - **Special Handling:** Financial patterns, Roman numerals, continuation tables
+        
+        ## File Naming Strategy
+        - **Smart Naming:** Uses extracted table titles for filenames
+        - **Clean Names:** Removes special characters and currency info from filenames
+        - **Unique Files:** Each table gets its own CSV file
+        - **No Temporary Names:** No more generic "tmpXXX_Combined_Table.csv" files
         """)
 
 
