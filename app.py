@@ -1224,35 +1224,18 @@ def main():
                     st.subheader("💾 Individual Table Downloads")
                     st.markdown("**Each table saved with its extracted title as filename:**")
                     
-                    # Store file data in session state to prevent loss on rerun
-                    if 'csv_file_data' not in st.session_state:
-                        st.session_state.csv_file_data = {}
+                    # Create a container that persists after downloads
+                    download_container = st.container()
                     
-                    # Load all CSV files into session state
-                    for csv_path in results['csv_files']:
-                        if os.path.exists(csv_path):
-                            filename = os.path.basename(csv_path)
-                            if filename not in st.session_state.csv_file_data:
-                                try:
-                                    with open(csv_path, 'r', encoding='utf-8') as f:
-                                        csv_content = f.read()
-                                    st.session_state.csv_file_data[filename] = csv_content
-                                except Exception as e:
-                                    st.error(f"❌ Error reading file {filename}: {str(e)}")
-                    
-                    # Create download section for each CSV file
-                    download_success = False
-                    for i, csv_path in enumerate(results['csv_files'], 1):
-                        try:
-                            filename = os.path.basename(csv_path)
-                            
-                            if filename in st.session_state.csv_file_data:
-                                csv_content = st.session_state.csv_file_data[filename]
+                    with download_container:
+                        # Create download section for each CSV file
+                        for i, csv_path in enumerate(results['csv_files'], 1):
+                            if os.path.exists(csv_path):
+                                filename = os.path.basename(csv_path)
                                 
-                                # Validate content
-                                if not csv_content.strip():
-                                    st.warning(f"⚠️ File {filename} is empty")
-                                    continue
+                                # Read file content for download
+                                with open(csv_path, 'r', encoding='utf-8') as f:
+                                    csv_content = f.read()
                                 
                                 # Get file size
                                 file_size = len(csv_content.encode('utf-8'))
@@ -1265,68 +1248,54 @@ def main():
                                 with col2:
                                     st.write(f"{file_size / 1024:.1f} KB")
                                 with col3:
-                                    # Use timestamp to make keys more unique and prevent conflicts
-                                    import time
-                                    download_key = f"dl_{i}_{int(time.time() * 1000) % 100000}"
+                                    # Create a unique key that includes current time to avoid conflicts
+                                    unique_key = f"csv_download_{i}_{abs(hash(filename))}"
+                                    
+                                    # Use a form to prevent auto-rerun
+                                    with st.form(key=f"form_{unique_key}"):
+                                        submitted = st.form_submit_button("📥 Download", use_container_width=True)
+                                        if submitted:
+                                            # Create download using st.download_button outside form
+                                            st.success(f"✅ Preparing download for {filename}")
+                                    
+                                    # Always show download button (this approach keeps it persistent)
                                     st.download_button(
-                                        label="📥 Download",
+                                        label="📥 Get File",
                                         data=csv_content.encode('utf-8'),
                                         file_name=filename,
                                         mime="text/csv",
-                                        key=download_key,
-                                        help=f"Download {filename}",
-                                        use_container_width=False
+                                        key=f"persistent_download_{i}_{abs(hash(filename))}",
+                                        help=f"Click to download {filename}"
                                     )
-                                download_success = True
-                            else:
-                                st.error(f"❌ File data not available: {filename}")
-                        except Exception as e:
-                            st.error(f"❌ Error processing file {filename}: {str(e)}")
-                    
-                    if not download_success:
-                        st.error("❌ No downloadable files available")
                     
                     st.divider()
                     
-                    # Optional: Bulk download as ZIP
+                    # Bulk download as ZIP
                     st.subheader("📦 Bulk Download")
                     
-                    try:
-                        # Create download zip using session state data
-                        zip_buffer = io.BytesIO()
-                        files_added = 0
+                    # Create download zip
+                    zip_buffer = io.BytesIO()
+                    files_added = 0
+                    
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        for csv_path in results['csv_files']:
+                            if os.path.exists(csv_path):
+                                zip_file.write(csv_path, os.path.basename(csv_path))
+                                files_added += 1
+                    
+                    if files_added > 0:
+                        zip_buffer.seek(0)
                         
-                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                            for filename, content in st.session_state.csv_file_data.items():
-                                try:
-                                    if content and content.strip():
-                                        # Add file content to zip
-                                        zip_file.writestr(filename, content.encode('utf-8'))
-                                        files_added += 1
-                                except Exception as e:
-                                    st.warning(f"⚠️ Could not add {filename} to ZIP: {str(e)}")
-                        
-                        if files_added > 0:
-                            zip_buffer.seek(0)
-                            
-                            # Download button for all files
-                            st.download_button(
-                                label=f"📦 Download All {files_added} CSV Files (ZIP)",
-                                data=zip_buffer.getvalue(),
-                                file_name=f"{results['pdf_name']}_extracted_tables.zip",
-                                mime="application/zip",
-                                key="download_all_zip",
-                                help=f"Download ZIP containing {files_added} CSV files",
-                                use_container_width=False
-                            )
-                        else:
-                            st.error("❌ No files could be added to ZIP")
-                            
-                    except Exception as e:
-                        st.error(f"❌ Error creating ZIP file: {str(e)}")
-                
-                else:
-                    st.warning("⚠️ No CSV files were generated")
+                        # Download button for all files
+                        st.download_button(
+                            label=f"📦 Download All {files_added} CSV Files (ZIP)",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"{results['pdf_name']}_extracted_tables.zip",
+                            mime="application/zip",
+                            key="bulk_zip_download"
+                        )
+                    else:
+                        st.error("❌ No files available for bulk download")
                 
                 # Page-by-page results
                 st.subheader("📄 Page-by-Page Analysis")
