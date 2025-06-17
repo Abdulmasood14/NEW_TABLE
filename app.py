@@ -1224,49 +1224,42 @@ def main():
                     st.subheader("💾 Individual Table Downloads")
                     st.markdown("**Each table saved with its extracted title as filename:**")
                     
-                    # Create a container that persists after downloads
-                    download_container = st.container()
+                    # Store results in session state to persist after downloads
+                    if 'extraction_results' not in st.session_state:
+                        st.session_state.extraction_results = results
                     
-                    with download_container:
-                        # Create download section for each CSV file
-                        for i, csv_path in enumerate(results['csv_files'], 1):
-                            if os.path.exists(csv_path):
-                                filename = os.path.basename(csv_path)
-                                
-                                # Read file content for download
-                                with open(csv_path, 'r', encoding='utf-8') as f:
-                                    csv_content = f.read()
-                                
-                                # Get file size
-                                file_size = len(csv_content.encode('utf-8'))
-                                
-                                # Create columns for better layout
-                                col1, col2, col3 = st.columns([4, 1, 1])
-                                
-                                with col1:
-                                    st.write(f"**{i}. {filename}**")
-                                with col2:
-                                    st.write(f"{file_size / 1024:.1f} KB")
-                                with col3:
-                                    # Create a unique key that includes current time to avoid conflicts
-                                    unique_key = f"csv_download_{i}_{abs(hash(filename))}"
-                                    
-                                    # Use a form to prevent auto-rerun
-                                    with st.form(key=f"form_{unique_key}"):
-                                        submitted = st.form_submit_button("📥 Download", use_container_width=True)
-                                        if submitted:
-                                            # Create download using st.download_button outside form
-                                            st.success(f"✅ Preparing download for {filename}")
-                                    
-                                    # Always show download button (this approach keeps it persistent)
-                                    st.download_button(
-                                        label="📥 Get File",
-                                        data=csv_content.encode('utf-8'),
-                                        file_name=filename,
-                                        mime="text/csv",
-                                        key=f"persistent_download_{i}_{abs(hash(filename))}",
-                                        help=f"Click to download {filename}"
-                                    )
+                    # Use session state results to prevent loss on rerun
+                    current_results = st.session_state.extraction_results
+                    
+                    # Create download section for each CSV file
+                    for i, csv_path in enumerate(current_results['csv_files'], 1):
+                        if os.path.exists(csv_path):
+                            filename = os.path.basename(csv_path)
+                            
+                            # Read file content for download
+                            with open(csv_path, 'r', encoding='utf-8') as f:
+                                csv_content = f.read()
+                            
+                            # Get file size
+                            file_size = len(csv_content.encode('utf-8'))
+                            
+                            # Create columns for better layout
+                            col1, col2, col3 = st.columns([4, 1, 1])
+                            
+                            with col1:
+                                st.write(f"**{i}. {filename}**")
+                            with col2:
+                                st.write(f"{file_size / 1024:.1f} KB")
+                            with col3:
+                                # Create unique keys to prevent conflicts
+                                download_key = f"download_csv_{i}_{hash(filename) % 100000}"
+                                st.download_button(
+                                    label="📥 Download",
+                                    data=csv_content.encode('utf-8'),
+                                    file_name=filename,
+                                    mime="text/csv",
+                                    key=download_key
+                                )
                     
                     st.divider()
                     
@@ -1278,7 +1271,7 @@ def main():
                     files_added = 0
                     
                     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        for csv_path in results['csv_files']:
+                        for csv_path in current_results['csv_files']:
                             if os.path.exists(csv_path):
                                 zip_file.write(csv_path, os.path.basename(csv_path))
                                 files_added += 1
@@ -1290,9 +1283,9 @@ def main():
                         st.download_button(
                             label=f"📦 Download All {files_added} CSV Files (ZIP)",
                             data=zip_buffer.getvalue(),
-                            file_name=f"{results['pdf_name']}_extracted_tables.zip",
+                            file_name=f"{current_results['pdf_name']}_extracted_tables.zip",
                             mime="application/zip",
-                            key="bulk_zip_download"
+                            key="bulk_download_zip"
                         )
                     else:
                         st.error("❌ No files available for bulk download")
