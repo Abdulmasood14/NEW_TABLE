@@ -1225,55 +1225,91 @@ def main():
                     st.markdown("**Each table saved with its extracted title as filename:**")
                     
                     # Create download section for each CSV file
+                    download_success = False
                     for i, csv_path in enumerate(results['csv_files'], 1):
-                        if os.path.exists(csv_path):
-                            filename = os.path.basename(csv_path)
-                            
-                            # Read file content for download
-                            with open(csv_path, 'r', encoding='utf-8') as f:
-                                csv_content = f.read()
-                            
-                            # Get file size
-                            file_size = len(csv_content.encode('utf-8'))
-                            
-                            # Create columns for better layout
-                            col1, col2, col3 = st.columns([3, 1, 1])
-                            
-                            with col1:
-                                st.write(f"**{i}. {filename}**")
-                            with col2:
-                                st.write(f"{file_size / 1024:.1f} KB")
-                            with col3:
-                                st.download_button(
-                                    label="📥 Download",
-                                    data=csv_content,
-                                    file_name=filename,
-                                    mime="text/csv",
-                                    key=f"download_individual_{i}"
-                                )
+                        try:
+                            if os.path.exists(csv_path):
+                                filename = os.path.basename(csv_path)
+                                
+                                # Read file content for download
+                                with open(csv_path, 'r', encoding='utf-8') as f:
+                                    csv_content = f.read()
+                                
+                                # Validate content
+                                if not csv_content.strip():
+                                    st.warning(f"⚠️ File {filename} is empty")
+                                    continue
+                                
+                                # Get file size
+                                file_size = len(csv_content.encode('utf-8'))
+                                
+                                # Create columns for better layout
+                                col1, col2, col3 = st.columns([4, 1, 1])
+                                
+                                with col1:
+                                    st.write(f"**{i}. {filename}**")
+                                with col2:
+                                    st.write(f"{file_size / 1024:.1f} KB")
+                                with col3:
+                                    # Create unique key for each download button
+                                    download_key = f"download_{i}_{hash(filename) % 10000}"
+                                    st.download_button(
+                                        label="📥 Download",
+                                        data=csv_content.encode('utf-8'),
+                                        file_name=filename,
+                                        mime="text/csv",
+                                        key=download_key,
+                                        help=f"Download {filename}"
+                                    )
+                                download_success = True
+                            else:
+                                st.error(f"❌ File not found: {csv_path}")
+                        except Exception as e:
+                            st.error(f"❌ Error reading file {csv_path}: {str(e)}")
+                    
+                    if not download_success:
+                        st.error("❌ No downloadable files available")
                     
                     st.divider()
                     
                     # Optional: Bulk download as ZIP
                     st.subheader("📦 Bulk Download")
                     
-                    # Create download zip
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                        for csv_path in results['csv_files']:
-                            if os.path.exists(csv_path):
-                                zip_file.write(csv_path, os.path.basename(csv_path))
-                    
-                    zip_buffer.seek(0)
-                    
-                    # Download button for all files
-                    st.download_button(
-                        label="📦 Download All CSV Files (ZIP)",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"{results['pdf_name']}_extracted_tables.zip",
-                        mime="application/zip",
-                        key="download_bulk_zip"
-                    )
+                    try:
+                        # Create download zip
+                        zip_buffer = io.BytesIO()
+                        files_added = 0
+                        
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            for csv_path in results['csv_files']:
+                                try:
+                                    if os.path.exists(csv_path):
+                                        # Add file to zip
+                                        zip_file.write(csv_path, os.path.basename(csv_path))
+                                        files_added += 1
+                                except Exception as e:
+                                    st.warning(f"⚠️ Could not add {csv_path} to ZIP: {str(e)}")
+                        
+                        if files_added > 0:
+                            zip_buffer.seek(0)
+                            
+                            # Download button for all files
+                            st.download_button(
+                                label=f"📦 Download All {files_added} CSV Files (ZIP)",
+                                data=zip_buffer.getvalue(),
+                                file_name=f"{results['pdf_name']}_extracted_tables.zip",
+                                mime="application/zip",
+                                key="download_bulk_zip",
+                                help=f"Download ZIP containing {files_added} CSV files"
+                            )
+                        else:
+                            st.error("❌ No files could be added to ZIP")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error creating ZIP file: {str(e)}")
+                
+                else:
+                    st.warning("⚠️ No CSV files were generated")
                 
                 # Page-by-page results
                 st.subheader("📄 Page-by-Page Analysis")
